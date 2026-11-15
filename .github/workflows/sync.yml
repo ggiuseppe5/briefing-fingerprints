@@ -1,0 +1,30 @@
+name: Append new fingerprints
+on:
+  schedule:
+    # Weekdays after the 21:15 London briefing and its archive step.
+    - cron: '45 22 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Append records from the public index (fails if a past record changed)
+        run: |
+          cp fingerprints.jsonl "$RUNNER_TEMP/previous.jsonl"
+          python3 scripts/fingerprints.py sync
+          python3 scripts/fingerprints.py check --previous "$RUNNER_TEMP/previous.jsonl"
+      - name: Commit new lines
+        run: |
+          if git diff --quiet -- fingerprints.jsonl; then echo "Nothing new."; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fingerprints.jsonl
+          git commit -m "Fingerprints through $(tail -n1 fingerprints.jsonl | python3 -c 'import json,sys;r=json.loads(sys.stdin.read());print(r["briefing_date"], "r"+str(r["revision"]))')"
+          git push
