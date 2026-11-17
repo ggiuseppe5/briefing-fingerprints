@@ -2,6 +2,10 @@ name: Verify fingerprints are append-only
 on:
   push:
   pull_request:
+  # Pushes made by the sync workflow do not start other workflows, so also run after each sync.
+  workflow_run:
+    workflows: ['Append new fingerprints']
+    types: [completed]
 permissions:
   contents: read
 jobs:
@@ -15,7 +19,7 @@ jobs:
           persist-credentials: false
       - name: Check every line, and that earlier lines are unchanged
         env:
-          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha || 'HEAD~1' }}
         run: |
           if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE:fingerprints.jsonl" 2>/dev/null; then
             git show "$BEFORE:fingerprints.jsonl" > "$RUNNER_TEMP/previous.jsonl"
